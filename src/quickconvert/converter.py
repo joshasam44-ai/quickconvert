@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
+import math
 import re
+from numbers import Real
 
 
 class BinaryUnit(str, Enum):
@@ -53,14 +55,23 @@ def _unit(value: BinaryUnit | str) -> BinaryUnit:
         raise ValueError(f"Unsupported binary unit: {value!r}") from exc
 
 
+def _validate_non_negative(value: float, *, label: str = "value") -> float:
+    """Validate a real number is finite and non-negative."""
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise TypeError(f"{label} must be a real number")
+    numeric = float(value)
+    if not math.isfinite(numeric) or numeric < 0:
+        raise ValueError(f"{label} must be a finite, non-negative number")
+    return numeric
+
+
 def convert(value: float, from_unit: BinaryUnit | str, to_unit: BinaryUnit | str) -> float:
     """Convert a numeric value between binary units.
 
     ``KB`` and similar short aliases are accepted for convenience and are
     interpreted as their binary counterparts (1024 bytes per KiB).
     """
-    if value < 0:
-        raise ValueError("value must be non-negative")
+    value = _validate_non_negative(value)
     source = _unit(from_unit)
     target = _unit(to_unit)
     return value * source.multiplier / target.multiplier
@@ -71,15 +82,21 @@ _SIZE_PATTERN = re.compile(r"^\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>[a-zA-Z]+)\
 
 def parse(size: str) -> tuple[float, BinaryUnit]:
     """Parse a string such as ``\"2.5 GiB\"`` into a value and unit."""
+    if not isinstance(size, str):
+        raise TypeError("size must be a string")
     match = _SIZE_PATTERN.match(size)
     if match is None:
         raise ValueError(f"Invalid size: {size!r}")
-    return float(match.group("value")), _unit(match.group("unit"))
+    value = _validate_non_negative(float(match.group("value")), label="size value")
+    return value, _unit(match.group("unit"))
 
 
 def format_size(value: float, unit: BinaryUnit | str = BinaryUnit.B, precision: int = 2) -> str:
     """Format a size with a normalized unit, such as ``\"1.50 MiB\"``."""
+    if isinstance(precision, bool) or not isinstance(precision, int):
+        raise TypeError("precision must be an integer")
     if precision < 0:
         raise ValueError("precision must be non-negative")
+    value = _validate_non_negative(value)
     normalized = _unit(unit)
     return f"{value:.{precision}f} {normalized.value}"
