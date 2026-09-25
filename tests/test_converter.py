@@ -15,6 +15,10 @@ class ConverterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             convert(-1, "B", "KiB")
 
+    def test_rejects_negative_format_values(self):
+        with self.assertRaises(ValueError):
+            format_size(-1, "KiB")
+
     def test_parses_size_strings(self):
         self.assertEqual(parse(" 2.5 GiB "), (2.5, BinaryUnit.GiB))
 
@@ -26,6 +30,8 @@ class ConverterTests(unittest.TestCase):
             parse("not a size")
         with self.assertRaises(ValueError):
             convert(1, "stones", "B")
+        with self.assertRaises(TypeError):
+            parse(None)
 
 
 if __name__ == "__main__":
