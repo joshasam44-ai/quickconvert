@@ -27,6 +27,14 @@ class ConverterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             convert(1, "stones", "B")
 
+    def test_parses_decimal_formats_and_rejects_non_finite_input(self):
+        self.assertEqual(parse("1. GiB"), (1.0, BinaryUnit.GiB))
+        self.assertEqual(parse(".5 KiB"), (0.5, BinaryUnit.KiB))
+        with self.assertRaises(ValueError):
+            convert(float("nan"), "B", "KiB")
+        with self.assertRaises(ValueError):
+            format_size(float("inf"), "B")
+
 
 if __name__ == "__main__":
     unittest.main()

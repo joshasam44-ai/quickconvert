@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
+import math
 import re
+from numbers import Real
 
 
 class BinaryUnit(str, Enum):
@@ -53,33 +55,53 @@ def _unit(value: BinaryUnit | str) -> BinaryUnit:
         raise ValueError(f"Unsupported binary unit: {value!r}") from exc
 
 
+def _coerce_finite_number(value: float, *, name: str) -> float:
+    """Coerce a numeric input to a finite float, rejecting invalid values."""
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError(f"{name} must be a finite number")
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a finite number") from exc
+    if not math.isfinite(numeric_value):
+        raise ValueError(f"{name} must be a finite number")
+    return numeric_value
+
+
 def convert(value: float, from_unit: BinaryUnit | str, to_unit: BinaryUnit | str) -> float:
     """Convert a numeric value between binary units.
 
     ``KB`` and similar short aliases are accepted for convenience and are
     interpreted as their binary counterparts (1024 bytes per KiB).
     """
-    if value < 0:
+    numeric_value = _coerce_finite_number(value, name="value")
+    if numeric_value < 0:
         raise ValueError("value must be non-negative")
     source = _unit(from_unit)
     target = _unit(to_unit)
-    return value * source.multiplier / target.multiplier
+    return numeric_value * source.multiplier / target.multiplier
 
 
-_SIZE_PATTERN = re.compile(r"^\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>[a-zA-Z]+)\s*$")
+_SIZE_PATTERN = re.compile(r"^\s*(?P<value>\d+(?:\.\d*)?|\.\d+)\s*(?P<unit>[a-zA-Z]+)\s*$")
 
 
 def parse(size: str) -> tuple[float, BinaryUnit]:
     """Parse a string such as ``\"2.5 GiB\"`` into a value and unit."""
+    if not isinstance(size, str):
+        raise ValueError(f"Invalid size: {size!r}")
     match = _SIZE_PATTERN.match(size)
     if match is None:
         raise ValueError(f"Invalid size: {size!r}")
-    return float(match.group("value")), _unit(match.group("unit"))
+    numeric_value = _coerce_finite_number(float(match.group("value")), name="value")
+    return numeric_value, _unit(match.group("unit"))
 
 
 def format_size(value: float, unit: BinaryUnit | str = BinaryUnit.B, precision: int = 2) -> str:
     """Format a size with a normalized unit, such as ``\"1.50 MiB\"``."""
+    if isinstance(precision, bool) or not isinstance(precision, int):
+        raise ValueError("precision must be a non-negative integer")
     if precision < 0:
         raise ValueError("precision must be non-negative")
+    numeric_value = _coerce_finite_number(value, name="value")
     normalized = _unit(unit)
-    return f"{value:.{precision}f} {normalized.value}"
+    return f"{numeric_value:.{precision}f} {normalized.value}"
